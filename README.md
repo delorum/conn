@@ -56,9 +56,9 @@ Add headers to your requests using `addHeader(String key, String value)` method.
 
 Add post data using `addPostData()` method. Post data must be provided as JSONObject.
 
-If you want to execute multipart post, use `addMultipartPostData()`.
+If you want to execute multipart post, use `addMultipartPostData()` to add post data.
 
-Answer to request can be received using this public field in Conn instance:
+Answer to request then can be retrieved via these public fields in Conn instance:
 
     String conn.currentUrl
     int conn.currentStatusCode
@@ -67,4 +67,4 @@ Answer to request can be received using this public field in Conn instance:
     StringBuilder conn.currentCookies
     String conn.currentHtml
     
-If you want to retrieve binary data use `getBinaryData(OutputStream os, String link)` method. Binary object then can be retrieved through `OutputStream os`.
+If you want to retrieve binary data use `getBinaryData(OutputStream os, String link)` method (instead of `executeGet()` or `executePost()`). Binary object then can be retrieved through `OutputStream os`.
