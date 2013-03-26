@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.github.dunnololda</groupId>
+    <artifactId>conn</artifactId>
+    <version>1.0</version>
+    <description>Simple java http client</description>
+
+    <properties>
+        <maven.compiler.source>1.6</maven.compiler.source>
+        <maven.compiler.target>1.6</maven.compiler.target>
+        <encoding>UTF-8</encoding>
+
+        <!-- github server corresponds to entry in ~/.m2/settings.xml -->
+        <github.global.server>github</github.global.server>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.11</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>1.6.2</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpcore</artifactId>
+            <version>4.2</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpcore-nio</artifactId>
+            <version>4.2</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+            <version>4.2</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpmime</artifactId>
+            <version>4.2</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.json</groupId>
+            <artifactId>json</artifactId>
+            <version>20090211</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.ccil.cowan.tagsoup</groupId>
+            <artifactId>tagsoup</artifactId>
+            <version>1.2</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <sourceDirectory>src/main/java</sourceDirectory>
+        <testSourceDirectory>src/test/java</testSourceDirectory>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>2.6</version>
+                <configuration>
+                    <useFile>false</useFile>
+                    <disableXmlReport>true</disableXmlReport>
+                    <!-- If you have classpath issue like NoDefClassError,... -->
+                    <!-- useManifestOnlyJar>false</useManifestOnlyJar -->
+                    <includes>
+                        <include>**/*Test.*</include>
+                        <include>**/*Suite.*</include>
+                    </includes>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>2.3.1</version>
+                <configuration>
+                    <!--<archive>
+                        <manifest>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                        </manifest>
+                        <manifestEntries>
+                            <Implementation-Build>${buildNumber}</Implementation-Build>
+                        </manifestEntries>
+                    </archive>-->
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>2.1.2</version>
+                <configuration>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>jar</goal>
+                            <goal>test-jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>com.github.github</groupId>
+                <artifactId>site-maven-plugin</artifactId>
+                <version>0.7</version>
+                <configuration>
+                    <message>Maven artifacts for ${artifactId} ${project.version}</message>  <!-- git commit message -->
+                    <noJekyll>true</noJekyll>                                  <!-- disable webpage processing -->
+                    <outputDirectory>${project.build.directory}/mvn-repo</outputDirectory> <!-- matches distribution management repository url above -->
+                    <branch>refs/heads/master</branch>                       <!-- remote branch name -->
+                    <includes><include>**/*</include></includes>
+                    <repositoryName>mvn-repo</repositoryName>      <!-- github repo name -->
+                    <repositoryOwner>dunnololda</repositoryOwner>    <!-- github username  -->
+                    <merge>true</merge>
+                </configuration>
+                <executions>
+                    <!-- run site-maven-plugin's 'site' target as part of the build's normal 'deploy' phase -->
+                    <execution>
+                        <goals>
+                            <goal>site</goal>
+                        </goals>
+                        <phase>deploy</phase>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+    <distributionManagement>
+        <repository>
+            <id>internal.repo</id>
+            <name>Temporary Staging Repository</name>
+            <url>file://${project.build.directory}/mvn-repo</url>
+        </repository>
+    </distributionManagement>
+</project>
