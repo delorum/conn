@@ -1,7 +1,8 @@
 conn
 ====
 
-Simple java http client. Can execute get and post requests, receive text and binary answers from web servers, set custom headers and more.
+Simple java http client. Can execute get and post requests, receive text and binary answers from web servers, set custom 
+headers and more. Http and https requests are supported.
 
 Usage
 =====
@@ -48,7 +49,7 @@ Create instance of `com.github.dunnololda.conn.Conn` class:
     // ...
     Conn conn = new Conn();
     
-Call methods `executeGet()`, `executePost()` with url provided as String argument.
+Call methods `executeGet()`, `executePost()` with url provided as String argument. Http and https requests are supported.
 
 `executePost()` accepts additional boolean argument `isMultiPartData` (default is `false`. Also `executeMultipartPost()` method is available).
 
