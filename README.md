@@ -30,7 +30,7 @@ SBT
 
 Add to resolvers:
 
-    resolvers += "dunnololda's repo" at "https://raw.github.com/dunnololda/mvn-repo/"
+    resolvers += "dunnololda's repo" at "https://raw.github.com/dunnololda/mvn-repo/master"
     
 Add to dependencies:
 
