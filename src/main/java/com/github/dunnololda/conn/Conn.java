@@ -189,8 +189,8 @@ public class Conn {
             }
         }
         log.debug("executed post: " + currentUrl);
-        metaRefresh();
-        analyzeStatusCode();
+        //metaRefresh();
+        //analyzeStatusCode();
     }
 
     public void executeGet(String link) throws ClientProtocolException, IOException, JSONException, SAXException {
@@ -221,8 +221,8 @@ public class Conn {
             }
         }
         log.debug("executed get: " + currentUrl);
-        metaRefresh();
-        analyzeStatusCode();
+        //metaRefresh();
+        //analyzeStatusCode();
     }
 
     public void getBinaryData(OutputStream os, String link) throws JSONException, ClientProtocolException, IOException {
