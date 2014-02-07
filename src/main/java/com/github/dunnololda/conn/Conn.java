@@ -323,6 +323,10 @@ public class Conn {
         custom_headers = new JSONObject();
     }
 
+    public void removeCustomHeader(String header) {
+        custom_headers.remove(header);
+    }
+
     private void metaRefresh() throws JSONException, IOException, SAXException {
         boolean isRedirect = false;
         String redirectLink = "";
