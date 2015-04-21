@@ -1,7 +1,6 @@
 package com.github.dunnololda.conn;
 
 import org.apache.http.*;
-import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
@@ -15,8 +14,12 @@ import org.apache.http.entity.mime.MultipartEntity;
 import org.apache.http.entity.mime.content.ContentBody;
 import org.apache.http.entity.mime.content.StringBody;
 import org.apache.http.impl.client.ContentEncodingHttpClient;
-import org.apache.http.impl.conn.tsccm.ThreadSafeClientConnManager;
+import org.apache.http.impl.client.DecompressingHttpClient;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.impl.conn.PoolingClientConnectionManager;
 import org.apache.http.message.BasicNameValuePair;
+import org.apache.http.params.BasicHttpParams;
+import org.apache.http.params.HttpConnectionParams;
 import org.apache.http.protocol.HTTP;
 import org.apache.http.util.EntityUtils;
 import org.json.JSONArray;
@@ -41,8 +44,9 @@ import java.util.List;
 public class Conn {
     private static final Logger log = LoggerFactory.getLogger(Conn.class);
 
-    private ThreadSafeClientConnManager cm;
-    private ContentEncodingHttpClient client = new ContentEncodingHttpClient();
+    private PoolingClientConnectionManager cm;
+    private DefaultHttpClient client_backend;
+    private DecompressingHttpClient client;
 
     private String host = "";
     private String currentContext = "";
@@ -64,13 +68,13 @@ public class Conn {
     private static Conn instance;
 
     public static Conn instance() throws Exception {
-        if (instance == null) instance = new Conn();
+        if (instance == null) instance = new Conn(30000);
         return instance;
     }
 
-    public Conn() throws Exception {
+    public Conn(Integer timeout_msec) throws Exception {
         SchemeRegistry schemeRegistry = new SchemeRegistry();
-        schemeRegistry.register(new Scheme("http", PlainSocketFactory.getSocketFactory(), 80));
+        schemeRegistry.register(new Scheme("http", 80, PlainSocketFactory.getSocketFactory()));
 
         SSLContext sslContext = SSLContext.getInstance("TLS");
         //TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
@@ -95,16 +99,24 @@ public class Conn {
         ks.load(new FileInputStream(trustFile), "lienajava".toCharArray());
         tmf.init(ks);*/
         sslContext.init(null, new TrustManager[]{tm}, null);
-        SSLSocketFactory sf = new SSLSocketFactory(sslContext);
-        sf.setHostnameVerifier(SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);
-        Scheme scheme = new Scheme("https", sf, 443);
+        SSLSocketFactory sf = new SSLSocketFactory(sslContext, SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);
+        Scheme scheme = new Scheme("https", 443, sf);
         schemeRegistry.register(scheme);
 
-        cm = new ThreadSafeClientConnManager(schemeRegistry);
-        client = new ContentEncodingHttpClient(cm, null);
+        cm = new PoolingClientConnectionManager(schemeRegistry);
+
+        BasicHttpParams httpParams = new BasicHttpParams();
+        HttpConnectionParams.setConnectionTimeout(httpParams, timeout_msec);
+
+        client_backend = new DefaultHttpClient(cm, httpParams);
+        client = new DecompressingHttpClient(client_backend);
     }
 
-    public void addHeader(String name, String value) throws JSONException {
+    public void setConnectionTimeout(Integer new_timeout_sec) {
+        HttpConnectionParams.setConnectionTimeout(client_backend.getParams(), new_timeout_sec);
+    }
+
+    public void addCustomHeader(String name, String value) throws JSONException {
         custom_headers.put(name, value);
     }
 
@@ -132,133 +144,145 @@ public class Conn {
         }
     }
 
-    public void executePost(String link) throws ClientProtocolException, IOException, JSONException, SAXException {
+    public void executePost(String link) throws IOException, JSONException, SAXException {
         executePost(link, false);
     }
 
-    public void executeMultipartPost(String link) throws ClientProtocolException, IOException, JSONException, SAXException {
+    public void executeMultipartPost(String link) throws IOException, JSONException, SAXException {
         executePost(link, true);
     }
 
-    public void executePost(String link, boolean isMultiPartData) throws ClientProtocolException, IOException, JSONException, SAXException {
+    public void executePost(String link, boolean isMultiPartData) throws IOException, JSONException, SAXException {
         link = analyzeLink(link);
         String url = constructUrl(link);
         post = new HttpPost(url);
-        setHeaders(post);
-        JSONArray cf_names = custom_formdata.names();    // consume formdata
-        if (cf_names != null) {
-            if (isMultiPartData) {
-                MultipartEntity reqEntity = new MultipartEntity();
-                for (int i = 0; i < cf_names.length(); i++) {
-                    String name = cf_names.getString(i);
-                    ContentBody cb = (ContentBody) custom_formdata.get(name);
-                    reqEntity.addPart(name, cb);
+        try {
+            setHeaders(post);
+            JSONArray cf_names = custom_formdata.names();    // consume formdata
+            if (cf_names != null) {
+                if (isMultiPartData) {
+                    MultipartEntity reqEntity = new MultipartEntity();
+                    for (int i = 0; i < cf_names.length(); i++) {
+                        String name = cf_names.getString(i);
+                        ContentBody cb = (ContentBody) custom_formdata.get(name);
+                        reqEntity.addPart(name, cb);
+                    }
+                    post.setEntity(reqEntity);
+                } else {
+                    List<NameValuePair> nvps = new ArrayList<NameValuePair>();
+                    for (int i = 0; i < cf_names.length(); i++) {
+                        String name = cf_names.getString(i);
+                        String value = custom_formdata.getString(name);
+                        nvps.add(new BasicNameValuePair(name, value));
+                    }
+                    post.setEntity(new UrlEncodedFormEntity(nvps, "UTF-8"));
                 }
-                post.setEntity(reqEntity);
-            } else {
-                List<NameValuePair> nvps = new ArrayList<NameValuePair>();
-                for (int i = 0; i < cf_names.length(); i++) {
-                    String name = cf_names.getString(i);
-                    String value = custom_formdata.getString(name);
-                    nvps.add(new BasicNameValuePair(name, value));
-                }
-                post.setEntity(new UrlEncodedFormEntity(nvps, HTTP.UTF_8));
+                custom_formdata = new JSONObject();
             }
-            custom_formdata = new JSONObject();
-        }
 
-        currentUrl = post.getURI().toString();
-        HttpResponse response = client.execute(post);
-        HttpEntity entity = response.getEntity();
-        currentStatusCode = response.getStatusLine().getStatusCode();
-        currentTextStatus = response.getStatusLine().toString();
-        currentHeaders = new HashMap<String, String>();
-        for (Header h : response.getAllHeaders()) {
-            currentHeaders.put(h.getName(), h.getValue());
-        }
-        currentCookies = new StringBuilder();
-        for (Cookie c : client.getCookieStore().getCookies()) {
-            currentCookies.append(c).append("\n");
-        }
-        if (entity != null) {
-            try {
-                currentHtml = EntityUtils.toString(entity, "utf-8");
-                entity.consumeContent();
-            } catch (MalformedChunkCodingException mcce) {
-                //mcce.printStackTrace();
+            currentUrl = post.getURI().toString();
+            HttpResponse response = client.execute(post);
+            HttpEntity entity = response.getEntity();
+            currentStatusCode = response.getStatusLine().getStatusCode();
+            currentTextStatus = response.getStatusLine().toString();
+            currentHeaders = new HashMap<String, String>();
+            for (Header h : response.getAllHeaders()) {
+                currentHeaders.put(h.getName(), h.getValue());
             }
+            currentCookies = new StringBuilder();
+            for (Cookie c : client_backend.getCookieStore().getCookies()) {
+                currentCookies.append(c).append("\n");
+            }
+            if (entity != null) {
+                try {
+                    currentHtml = EntityUtils.toString(entity, "utf-8");
+                    entity.getContent().close();
+                } catch (Throwable t) {
+                    log.error("executePost error -> ", t);
+                }
+            }
+            log.debug("executed post: " + currentUrl);
+            //metaRefresh();
+            //analyzeStatusCode();
+        } finally {
+            post.releaseConnection();
         }
-        log.debug("executed post: " + currentUrl);
-        //metaRefresh();
-        //analyzeStatusCode();
     }
 
-    public void executeGet(String link) throws ClientProtocolException, IOException, JSONException, SAXException {
+    public void executeGet(String link) throws IOException, JSONException, SAXException {
         link = analyzeLink(link);
         String url = constructUrl(link);
         get = new HttpGet(url);
-        setHeaders(get);
+        try {
+            setHeaders(get);
 
-        currentUrl = get.getURI().toString();
-        HttpResponse response = client.execute(get);
-        HttpEntity entity = response.getEntity();
-        currentStatusCode = response.getStatusLine().getStatusCode();
-        currentTextStatus = response.getStatusLine().toString();
-        currentHeaders = new HashMap<String, String>();
-        for (Header h : response.getAllHeaders()) {
-            currentHeaders.put(h.getName(), h.getValue());
-        }
-        currentCookies = new StringBuilder();
-        for (Cookie c : client.getCookieStore().getCookies()) {
-            currentCookies.append(c).append("\n");
-        }
-        if (entity != null) {
-            try {
-                currentHtml = EntityUtils.toString(entity, "utf-8");
-                entity.consumeContent();
-            } catch (MalformedChunkCodingException mcce) {
-                mcce.printStackTrace();
+            currentUrl = get.getURI().toString();
+            HttpResponse response = client.execute(get);
+            HttpEntity entity = response.getEntity();
+            currentStatusCode = response.getStatusLine().getStatusCode();
+            currentTextStatus = response.getStatusLine().toString();
+            currentHeaders = new HashMap<String, String>();
+            for (Header h : response.getAllHeaders()) {
+                currentHeaders.put(h.getName(), h.getValue());
             }
+            currentCookies = new StringBuilder();
+            for (Cookie c : client_backend.getCookieStore().getCookies()) {
+                currentCookies.append(c).append("\n");
+            }
+            if (entity != null) {
+                try {
+                    currentHtml = EntityUtils.toString(entity, "utf-8");
+                    entity.getContent().close();
+                } catch (Throwable t) {
+                    log.error("executeGet error ->", t);
+                }
+            }
+            log.debug("executed get: " + currentUrl);
+            //metaRefresh();
+            //analyzeStatusCode();
+        } finally {
+            get.releaseConnection();
         }
-        log.debug("executed get: " + currentUrl);
-        //metaRefresh();
-        //analyzeStatusCode();
     }
 
-    public void getBinaryData(OutputStream os, String link) throws JSONException, ClientProtocolException, IOException {
+    public void getBinaryData(OutputStream os, String link) throws JSONException, IOException {
         link = analyzeLink(link);
         String url = constructUrl(link);
         get = new HttpGet(url);
-        setHeaders(get);
+        try {
+            setHeaders(get);
 
-        currentUrl = this.get.getURI().toString();
-        HttpResponse response = client.execute(get);
-        HttpEntity entity = response.getEntity();
-        currentStatusCode = response.getStatusLine().getStatusCode();
-        currentTextStatus = response.getStatusLine().toString();
-        currentHeaders = new HashMap<String, String>();
-        for (Header h : response.getAllHeaders()) {
-            currentHeaders.put(h.getName(), h.getValue());
-        }
-        currentCookies = new StringBuilder();
-        for (Cookie c : client.getCookieStore().getCookies()) {
-            currentCookies.append(c).append("\n");
-        }
-        if (entity != null) {
-            try {
-                InputStream in = entity.getContent();
-                byte[] buffer = new byte[1024];
-                int count = -1;
-                while ((count = in.read(buffer)) != -1) {
-                    os.write(buffer, 0, count);
-                }
-                os.close();
-                entity.consumeContent();
-            } catch (MalformedChunkCodingException mcce) {
-                mcce.printStackTrace();
+            currentUrl = this.get.getURI().toString();
+            HttpResponse response = client.execute(get);
+            HttpEntity entity = response.getEntity();
+            currentStatusCode = response.getStatusLine().getStatusCode();
+            currentTextStatus = response.getStatusLine().toString();
+            currentHeaders = new HashMap<String, String>();
+            for (Header h : response.getAllHeaders()) {
+                currentHeaders.put(h.getName(), h.getValue());
             }
+            currentCookies = new StringBuilder();
+            for (Cookie c : client_backend.getCookieStore().getCookies()) {
+                currentCookies.append(c).append("\n");
+            }
+            if (entity != null) {
+                try {
+                    InputStream in = entity.getContent();
+                    byte[] buffer = new byte[1024];
+                    int count;
+                    while ((count = in.read(buffer)) != -1) {
+                        os.write(buffer, 0, count);
+                    }
+                    os.close();
+                    entity.getContent().close();
+                } catch (Throwable t) {
+                    log.error("getBinaryData error -> ", t);
+                }
+            }
+            log.debug("image retrieved: " + currentUrl);
+        } finally {
+            get.releaseConnection();
         }
-        log.debug("image retrieved: " + currentUrl);
     }
 
     private String analyzeLink(String link) {
@@ -343,7 +367,7 @@ public class Conn {
         }
     }
 
-    private void analyzeStatusCode() throws JSONException, ClientProtocolException, IOException, SAXException {
+    private void analyzeStatusCode() throws JSONException, IOException, SAXException {
         switch (currentStatusCode) {
             case 302:
                 log.debug("http1.1 302: redirect to another page " + currentHeaders.get("Location"));
@@ -355,8 +379,12 @@ public class Conn {
         }
     }
 
-    public ContentEncodingHttpClient getClient() {
+    public DecompressingHttpClient getClient() {
         return client;
+    }
+
+    public DefaultHttpClient getClientBackend() {
+        return client_backend;
     }
 
     public String getCurrentUrl() {

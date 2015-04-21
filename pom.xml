@@ -6,7 +6,7 @@
 
     <groupId>com.github.dunnololda</groupId>
     <artifactId>conn</artifactId>
-    <version>2</version>
+    <version>3</version>
     <description>Simple java http client</description>
 
     <properties>
@@ -124,7 +124,7 @@
             <plugin>
                 <groupId>com.github.github</groupId>
                 <artifactId>site-maven-plugin</artifactId>
-                <version>0.7</version>
+                <version>0.10</version>
                 <configuration>
                     <message>Maven artifacts for ${artifactId} ${project.version}</message>  <!-- git commit message -->
                     <noJekyll>true</noJekyll>                                  <!-- disable webpage processing -->

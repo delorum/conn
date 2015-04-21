@@ -10,7 +10,7 @@ import static org.junit.Assert.assertTrue;
 @RunWith(JUnit4.class)
 public class ConnTest {
     @Test public void testConn() throws Exception {
-        Conn conn = new Conn();
+        Conn conn = new Conn(30000);
         conn.executeGet("http://google.com");
         assertTrue(200 == conn.currentStatusCode);
         assertTrue("HTTP/1.1 200 OK".equals(conn.currentTextStatus));
